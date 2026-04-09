@@ -58,7 +58,7 @@ export interface ExistingOrderItem {
   MenuItemId: string;
   RestaurantId: string;
   RestaurantName: string;
-  WeekdayNumber: number;
+  WeekdayNumber: number | string;
   MealTime: string;
   Allergens: string[];
   AllergensProvided: boolean;

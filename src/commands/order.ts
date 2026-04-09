@@ -1,7 +1,8 @@
 import { requireAuth, getConfig } from "../lib/config.ts";
 import { MaulClient } from "../lib/maul-client.ts";
+import { findBestMatch } from "../lib/match.ts";
 import { getNextIsoWeek, weekdayName } from "./helpers.ts";
-import type { OrderSubmission, OrderItem } from "../lib/types.ts";
+import type { OrderSubmission, OrderItem, MenuItem } from "../lib/types.ts";
 
 export async function showOrders(opts: { week?: string; json?: boolean }) {
 	const token = await requireAuth();
@@ -26,7 +27,7 @@ export async function showOrders(opts: { week?: string; json?: boolean }) {
 			return;
 		}
 		for (const item of orders) {
-			console.log(`  ${weekdayName(item.WeekdayNumber)} — ${item.RestaurantName}`);
+			console.log(`  ${weekdayName(Number(item.WeekdayNumber))} — ${item.RestaurantName}`);
 			const desc =
 				item.ShortDescriptionByLang?.en ||
 				item.ShortDescriptionByLang?.is ||
@@ -56,27 +57,40 @@ export async function submitOrder(opts: { week?: string; meals?: string; json?: 
 	try {
 		meals = JSON.parse(opts.meals);
 	} catch {
-		throw new Error('Invalid --meals JSON. Expected format: {"1":"menu_item_id","2":"menu_item_id"}');
+		throw new Error('Invalid --meals JSON. Expected format: {"1":"pad thai chicken","2":"beef pie"}');
 	}
 
-	// Fetch menu to resolve full item details
+	// Fetch menu to resolve items
 	const menus = await client.getMenu(opts.week);
 	const allItems = menus.flatMap((m) => m.Menu);
-	const itemMap = new Map(allItems.map((item) => [item.MenuItemId, item]));
 
 	const orderItems: OrderItem[] = [];
-	for (const [dayStr, menuItemId] of Object.entries(meals)) {
-		const item = itemMap.get(menuItemId);
-		if (!item) {
-			throw new Error(`Menu item not found: ${menuItemId} (day ${dayStr})`);
+	const resolved: Array<{ day: number; query: string; match: MenuItem; score: number }> = [];
+
+	for (const [dayStr, query] of Object.entries(meals)) {
+		const weekday = Number.parseInt(dayStr, 10);
+		if (Number.isNaN(weekday) || weekday < 1 || weekday > 5) {
+			throw new Error(`Invalid day: ${dayStr}. Must be 1-5.`);
 		}
 
+		const result = findBestMatch(allItems, weekday, query);
+		if (!result) {
+			throw new Error(`No match found for "${query}" on ${weekdayName(weekday)}`);
+		}
+		if (result.score < 30) {
+			throw new Error(
+				`Best match for "${query}" on ${weekdayName(weekday)} was "${result.item.ShortDescriptionByLang.en || result.item.MenuItemId}" (score: ${result.score}) — too low confidence. Be more specific.`,
+			);
+		}
+
+		resolved.push({ day: weekday, query, match: result.item, score: result.score });
+
 		orderItems.push({
-			RestaurantId: item.RestaurantId,
+			RestaurantId: result.item.RestaurantId,
 			MenuId: "variety-a",
-			MenuItemId: item.MenuItemId,
-			MealTime: item.MealTime || "Lunch",
-			OrderDate: item.Date,
+			MenuItemId: result.item.MenuItemId,
+			MealTime: result.item.MealTime || "Lunch",
+			OrderDate: result.item.Date,
 		});
 	}
 
@@ -85,43 +99,34 @@ export async function submitOrder(opts: { week?: string; meals?: string; json?: 
 		OrderItems: orderItems,
 	};
 
-	const result = await client.submitOrder(order);
+	const apiResult = await client.submitOrder(order);
 
 	if (opts.json) {
-		console.log(JSON.stringify({ status: "submitted", week: opts.week, order: result }, null, 2));
+		console.log(
+			JSON.stringify(
+				{
+					status: "submitted",
+					week: opts.week,
+					resolved: resolved.map((r) => ({
+						day: r.day,
+						query: r.query,
+						matched: r.match.ShortDescriptionByLang.en || r.match.MenuItemId,
+						menuItemId: r.match.MenuItemId,
+						restaurant: r.match.RestaurantName,
+						score: r.score,
+					})),
+					order: apiResult,
+				},
+				null,
+				2,
+			),
+		);
 	} else {
-		console.log(`Order submitted for ${opts.week}`);
-		for (const oi of orderItems) {
-			const src = itemMap.get(oi.MenuItemId);
-			console.log(`  ${oi.OrderDate} — ${src?.RestaurantName || oi.RestaurantId}`);
+		console.log(`Order submitted for ${opts.week}\n`);
+		for (const r of resolved) {
+			const desc = r.match.ShortDescriptionByLang.en || r.match.MenuItemId;
+			console.log(`  ${weekdayName(r.day)} — ${r.match.RestaurantName}`);
+			console.log(`    ${desc}${r.score < 80 ? ` (match: ${r.score}%)` : ""}`);
 		}
-	}
-}
-
-export async function cancelOrder(opts: { week?: string; day?: string; json?: boolean }) {
-	if (!opts.week) throw new Error("--week is required");
-	if (!opts.day) throw new Error("--day is required");
-
-	const weekday = Number.parseInt(opts.day, 10);
-	if (Number.isNaN(weekday) || weekday < 1 || weekday > 5) {
-		throw new Error("Day must be 1-5 (Mon-Fri)");
-	}
-
-	const token = await requireAuth();
-	const config = getConfig();
-
-	const client = new MaulClient({
-		baseUrl: config.apiUrl,
-		token: token.accessToken,
-		userId: token.userId,
-		organization: token.organization,
-	});
-
-	await client.cancelOrder(opts.week, weekday);
-
-	if (opts.json) {
-		console.log(JSON.stringify({ status: "cancelled", week: opts.week, day: weekday }, null, 2));
-	} else {
-		console.log(`Cancelled ${weekdayName(weekday)} order for ${opts.week}`);
 	}
 }

@@ -2,11 +2,17 @@
   "name": "maularinn-cli",
   "version": "0.1.0",
   "module": "src/index.ts",
-  "type": "module",
-  "private": true,
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
   "bin": {
     "maul": "src/index.ts"
   },
+  "private": true,
   "scripts": {
     "start": "bun src/index.ts",
     "dev": "bun --watch src/index.ts",
@@ -18,14 +24,8 @@
     "typecheck": "bunx tsc --noEmit",
     "check": "bun run lint && bun run typecheck && bun run test"
   },
+  "type": "module",
   "dependencies": {
     "amazon-cognito-identity-js": "^6.3.16"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.9",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   }
 }

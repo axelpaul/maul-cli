@@ -81,11 +81,6 @@ export class MaulClient {
 		return this.request("POST", "/orders", order);
 	}
 
-	async cancelOrder(isoWeek: string, weekday: number, userId?: string): Promise<void> {
-		const uid = userId || this.userId;
-		return this.request<void>("DELETE", `/users/${uid}/orders/${isoWeek}/${weekday}`);
-	}
-
 	async getLocationOrders(date: string): Promise<LocationOrder[]> {
 		return this.request<LocationOrder[]>(
 			"GET",
