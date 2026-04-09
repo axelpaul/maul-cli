@@ -2,7 +2,7 @@
 
 import { login, statusCommand, logout } from "./commands/auth.ts";
 import { showMenu } from "./commands/menu.ts";
-import { showOrders, submitOrder } from "./commands/order.ts";
+import { showOrders, submitOrder, cancelOrder } from "./commands/order.ts";
 import { userInfo } from "./commands/user.ts";
 import { adminOrders } from "./commands/admin.ts";
 import { isJsonMode } from "./lib/output.ts";
@@ -14,6 +14,7 @@ function getFlag(name: string): string | undefined {
 	}
 	const shortMap: Record<string, string> = {
 		w: "week",
+		d: "day",
 		m: "meals",
 	};
 	for (const [short, long] of Object.entries(shortMap)) {
@@ -68,6 +69,14 @@ const COMMANDS = [
 		],
 	},
 	{
+		name: "order-cancel",
+		description: "Cancel order for a specific day",
+		args: [
+			{ name: "week", short: "w", type: "string", required: true, description: "ISO week (YYYY-WNN)" },
+			{ name: "day", short: "d", type: "number", required: true, description: "Weekday number (1=Mon, 5=Fri)" },
+		],
+	},
+	{
 		name: "admin-orders",
 		description: "View all orders for a date",
 		args: [{ name: "date", type: "string", required: true, description: "Date (YYYY-MM-DD)" }],
@@ -88,12 +97,14 @@ Commands:
   menu                  Show weekly menu
   orders                Show your orders for a week
   order-submit          Submit an order (supports fuzzy menu matching)
+  order-cancel          Cancel order for a specific day
   admin-orders          View all orders for a date
 
 Options:
   --json                Force JSON output
   --pretty              Force human-readable output
   -w, --week <YYYY-WNN> ISO week (defaults to next week)
+  -d, --day <1-5>       Weekday number (1=Mon, 5=Fri)
   -m, --meals <json>    JSON map: {"1":"pad thai chicken","2":"beef pie"}
   --date <YYYY-MM-DD>   Date for admin queries
   --help                Show this help message
@@ -142,6 +153,14 @@ try {
 			await submitOrder({
 				week: getFlag("week"),
 				meals: getFlag("meals"),
+				json,
+			});
+			break;
+
+		case "order-cancel":
+			await cancelOrder({
+				week: getFlag("week"),
+				day: getFlag("day"),
 				json,
 			});
 			break;

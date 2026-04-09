@@ -130,3 +130,43 @@ export async function submitOrder(opts: { week?: string; meals?: string; json?: 
 		}
 	}
 }
+
+export async function cancelOrder(opts: { week?: string; day?: string; json?: boolean }) {
+	if (!opts.week) throw new Error("--week is required");
+	if (!opts.day) throw new Error("--day is required");
+
+	const weekday = Number.parseInt(opts.day, 10);
+	if (Number.isNaN(weekday) || weekday < 1 || weekday > 5) {
+		throw new Error("Day must be 1-5 (Mon-Fri)");
+	}
+
+	const token = await requireAuth();
+	const config = getConfig();
+
+	const client = new MaulClient({
+		baseUrl: config.apiUrl,
+		token: token.accessToken,
+		userId: token.userId,
+		organization: token.organization,
+	});
+
+	const orders = await client.getOrders(opts.week);
+	const dayOrder = orders.find((o) => String(o.WeekdayNumber) === String(weekday));
+
+	if (!dayOrder) {
+		throw new Error(`No order found for ${weekdayName(weekday)} in ${opts.week}`);
+	}
+
+	await client.cancelOrder({
+		mealTime: dayOrder.MealTime || "Lunch",
+		menuItemId: dayOrder.MenuItemId,
+		orderDate: dayOrder.Date,
+		restaurantId: dayOrder.RestaurantId,
+	});
+
+	if (opts.json) {
+		console.log(JSON.stringify({ status: "cancelled", week: opts.week, day: weekday }, null, 2));
+	} else {
+		console.log(`Cancelled ${weekdayName(weekday)} order for ${opts.week}`);
+	}
+}

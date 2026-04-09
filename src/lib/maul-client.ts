@@ -81,6 +81,14 @@ export class MaulClient {
 		return this.request("POST", "/orders", order);
 	}
 
+	async cancelOrder(
+		payload: { mealTime: string; menuItemId: string; orderDate: string; restaurantId: string },
+		userId?: string,
+	): Promise<void> {
+		const uid = userId || this.userId;
+		return this.request<void>("POST", `/users/${uid}/orders/cancel`, payload);
+	}
+
 	async getLocationOrders(date: string): Promise<LocationOrder[]> {
 		return this.request<LocationOrder[]>(
 			"GET",
