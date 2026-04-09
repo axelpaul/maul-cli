@@ -1,6 +1,6 @@
 # maul-cli
 
-A small CLI for [Maul](https://app.maul.is) — the lunch ordering system. Browse the weekly menu, pick your meals, and submit orders without leaving the terminal.
+A small CLI for [Maul](https://app.maul.is) the lunch ordering system. Browse the weekly menu, pick your meals, and submit orders without leaving the terminal, or have your agent do it for you. 
 
 ## Getting started
 
@@ -13,7 +13,7 @@ bun install
 bun link
 ```
 
-That's it — `maul` is now available globally.
+That's it `maul` is now available globally.
 
 ## Commands
 
