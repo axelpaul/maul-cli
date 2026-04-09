@@ -1,10 +1,10 @@
-# maul
+# maul-cli
 
-CLI for the [Maularinn](https://app.maul.is) lunch ordering system.
+A small CLI for [Maul](https://app.maul.is) — the lunch ordering system. Browse the weekly menu, pick your meals, and submit orders without leaving the terminal.
 
-## Install
+## Getting started
 
-Requires [Bun](https://bun.sh).
+You'll need [Bun](https://bun.sh) installed.
 
 ```bash
 git clone https://github.com/axelpaul/maul-cli.git
@@ -13,52 +13,30 @@ bun install
 bun link
 ```
 
-This makes the `maul` command available globally.
+That's it — `maul` is now available globally.
 
-## Usage
+## Commands
 
 ```bash
-# Authenticate
-maul login <username> <password>
+maul login <username> <password>    # log in with your Maul credentials
+maul menu                           # see next week's menu
+maul orders                         # see what you've ordered
+maul order-submit -w 2026-W16 -m '{"1":"item.id.lunch.mon"}'  # place an order
+maul order-cancel -w 2026-W16 -d 3  # cancel Wednesday
+maul me                             # your profile
+maul status                         # check if you're logged in
+maul logout                         # log out
+```
 
-# View next week's menu
-maul menu
-
-# View your orders
-maul orders
-
-# Place an order
-maul order-submit -w 2026-W16 -m '{"1":"item.id.lunch.mon","2":"item.id.lunch.tue"}'
-
-# Cancel a day
-maul order-cancel -w 2026-W16 -d 3
-
-# View your profile
-maul me
-
-# Check auth status
-maul status
-
-# Admin: view all orders for a date
+Admin:
+```bash
 maul admin-orders --date 2026-04-13
-
-# Log out
-maul logout
 ```
 
-## JSON output
+All commands support `--json` for machine-readable output, handy if you're wiring this up to something else.
 
-All commands support `--json` for machine-readable output:
-
-```bash
-maul menu --json
-maul orders --json
-```
-
-## Build
-
-Compile to a single binary:
+## Building a binary
 
 ```bash
-bun run build
+bun run build    # produces a standalone ./maul binary
 ```
