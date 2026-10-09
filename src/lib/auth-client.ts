@@ -1,8 +1,4 @@
-import {
-	CognitoUserPool,
-	CognitoUser,
-	AuthenticationDetails,
-} from "amazon-cognito-identity-js";
+import { AuthenticationDetails, CognitoUser, CognitoUserPool } from "amazon-cognito-identity-js";
 
 export interface AuthResult {
 	accessToken: string;

@@ -1,6 +1,6 @@
 import { unlinkSync } from "fs";
 import { authenticateCognito } from "../lib/auth-client.ts";
-import { getConfig, saveToken, loadToken, TOKEN_PATH } from "../lib/config.ts";
+import { getConfig, loadToken, saveToken, TOKEN_PATH } from "../lib/config.ts";
 import type { CachedToken, UserProfile } from "../lib/types.ts";
 
 export async function login(opts: { username?: string; password?: string; json?: boolean }) {
@@ -10,9 +10,7 @@ export async function login(opts: { username?: string; password?: string; json?:
 	const password = opts.password || config.servicePassword;
 
 	if (!username || !password) {
-		throw new Error(
-			"Usage: maul login <username> <password>",
-		);
+		throw new Error("Usage: maul login <username> <password>");
 	}
 
 	const auth = await authenticateCognito({
@@ -79,9 +77,11 @@ export async function statusCommand(opts: { json?: boolean }) {
 
 	if (!token) {
 		if (opts.json) {
-			console.log(JSON.stringify({ authenticated: false, reason: "No cached token found" }, null, 2));
+			console.log(
+				JSON.stringify({ authenticated: false, reason: "No cached token found" }, null, 2),
+			);
 		} else {
-			console.log("Not authenticated. Run \"maul auth login\" first.");
+			console.log('Not authenticated. Run "maul auth login" first.');
 		}
 		return;
 	}
@@ -105,7 +105,7 @@ export async function statusCommand(opts: { json?: boolean }) {
 		);
 	} else {
 		if (expired) {
-			console.log("Token expired. Run \"maul auth login\" to re-authenticate.");
+			console.log('Token expired. Run "maul auth login" to re-authenticate.');
 		} else {
 			console.log(`Authenticated as ${token.email}`);
 			console.log(`  Organization: ${token.organization}`);

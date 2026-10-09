@@ -1,4 +1,4 @@
-import { requireAuth, getConfig } from "../lib/config.ts";
+import { getConfig, requireAuth } from "../lib/config.ts";
 import { MaulClient } from "../lib/maul-client.ts";
 import { getNextIsoWeek, weekdayName } from "./helpers.ts";
 
@@ -20,7 +20,8 @@ export async function showMenu(opts: { week?: string; json?: boolean }) {
 	const byDay: Record<string, typeof items> = {};
 	for (const item of items) {
 		const day = String(item.WeekdayNumber);
-		(byDay[day] ??= []).push(item);
+		if (!byDay[day]) byDay[day] = [];
+		byDay[day].push(item);
 	}
 
 	if (opts.json) {

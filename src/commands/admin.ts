@@ -1,4 +1,4 @@
-import { requireAuth, getConfig } from "../lib/config.ts";
+import { getConfig, requireAuth } from "../lib/config.ts";
 import { MaulClient } from "../lib/maul-client.ts";
 
 export async function adminOrders(opts: { date?: string; json?: boolean }) {

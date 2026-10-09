@@ -1,8 +1,8 @@
-import { requireAuth, getConfig } from "../lib/config.ts";
-import { MaulClient } from "../lib/maul-client.ts";
+import { getConfig, requireAuth } from "../lib/config.ts";
 import { findBestMatch } from "../lib/match.ts";
+import { MaulClient } from "../lib/maul-client.ts";
+import type { MenuItem, OrderItem, OrderSubmission } from "../lib/types.ts";
 import { getNextIsoWeek, weekdayName } from "./helpers.ts";
-import type { OrderSubmission, OrderItem, MenuItem } from "../lib/types.ts";
 
 export async function showOrders(opts: { week?: string; json?: boolean }) {
 	const token = await requireAuth();
@@ -57,7 +57,9 @@ export async function submitOrder(opts: { week?: string; meals?: string; json?: 
 	try {
 		meals = JSON.parse(opts.meals);
 	} catch {
-		throw new Error('Invalid --meals JSON. Expected format: {"1":"pad thai chicken","2":"beef pie"}');
+		throw new Error(
+			'Invalid --meals JSON. Expected format: {"1":"pad thai chicken","2":"beef pie"}',
+		);
 	}
 
 	// Fetch menu to resolve items

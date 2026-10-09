@@ -26,6 +26,8 @@
   },
   "type": "module",
   "dependencies": {
-    "amazon-cognito-identity-js": "^6.3.16"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "amazon-cognito-identity-js": "^6.3.16",
+    "zod": "^4.6.5"
   }
 }

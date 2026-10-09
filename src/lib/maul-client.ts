@@ -1,9 +1,9 @@
 import type {
+	ExistingOrderItem,
+	LocationOrder,
+	OrderSubmission,
 	UserProfile,
 	WeeklyMenu,
-	ExistingOrderItem,
-	OrderSubmission,
-	LocationOrder,
 } from "./types.ts";
 
 export class MaulClient {
@@ -65,10 +65,7 @@ export class MaulClient {
 	async getOrders(isoWeek: string, userId?: string): Promise<ExistingOrderItem[]> {
 		const uid = userId || this.userId;
 		try {
-			return await this.request<ExistingOrderItem[]>(
-				"GET",
-				`/users/${uid}/orders/${isoWeek}/v2`,
-			);
+			return await this.request<ExistingOrderItem[]>("GET", `/users/${uid}/orders/${isoWeek}/v2`);
 		} catch (err) {
 			if (err instanceof ApiError && err.statusCode === 404) {
 				return [];
@@ -90,10 +87,7 @@ export class MaulClient {
 	}
 
 	async getLocationOrders(date: string): Promise<LocationOrder[]> {
-		return this.request<LocationOrder[]>(
-			"GET",
-			`/locations/${this.organization}/orders/${date}`,
-		);
+		return this.request<LocationOrder[]>("GET", `/locations/${this.organization}/orders/${date}`);
 	}
 }
 
