@@ -1,140 +1,199 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import pkg from "../../package.json" with { type: "json" };
 import { getNextIsoWeek } from "../commands/helpers.ts";
-import { getConfig, requireAuth } from "../lib/config.ts";
-import { MaulClient } from "../lib/maul-client.ts";
+import {
+	authStatus,
+	cancelDayOrder,
+	findDayOrder,
+	getMenuItems,
+	getSession,
+	ISO_WEEK_RE,
+	toOrderItem,
+} from "../lib/actions.ts";
 
-const server = new McpServer({ name: "maul", version: "0.1.0" });
+export const WRITES_ENV = "MAUL_MCP_ENABLE_WRITES";
+
 const result = (data: unknown) => ({
 	content: [{ type: "text" as const, text: JSON.stringify(data) }],
 });
 const error = (value: unknown) => ({
 	isError: true,
 	content: [
-		{ type: "text" as const, text: value instanceof Error ? value.message : "Maul lookup failed." },
+		{
+			type: "text" as const,
+			text: value instanceof Error ? value.message : "Maul request failed.",
+		},
 	],
 });
-const weekSchema = z
-	.string()
-	.regex(/^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/)
-	.optional();
+const weekSchema = z.string().regex(ISO_WEEK_RE).describe("ISO week, YYYY-WNN");
+const optionalWeek = weekSchema.optional().describe("ISO week, YYYY-WNN; defaults to next week");
+const daySchema = z.number().int().min(1).max(5).describe("Weekday number, 1=Mon … 5=Fri");
 
-async function client(): Promise<MaulClient> {
-	const token = await requireAuth();
-	const config = getConfig();
-	return new MaulClient({
-		baseUrl: config.apiUrl,
-		token: token.accessToken,
-		userId: token.userId,
-		organization: token.organization,
-	});
+export function writesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+	return env[WRITES_ENV] === "1";
 }
 
-server.registerTool(
-	"menu",
-	{
-		description:
-			"Read Maul lunch menu items for an ISO week; defaults to next week. No order is placed.",
-		inputSchema: { week: weekSchema, day: z.number().int().min(1).max(5).optional() },
-	},
-	async ({ week, day }) => {
-		try {
-			const selectedWeek = week || getNextIsoWeek();
-			const menus = await (await client()).getMenu(selectedWeek);
-			const items = menus
-				.flatMap((menu) => menu.Menu)
-				.filter((item) => day === undefined || item.WeekdayNumber === day);
-			return result({
-				week: selectedWeek,
-				count: items.length,
-				items: items.slice(0, 125).map((item) => ({
-					date: item.Date,
-					day: item.WeekdayNumber,
-					id: item.MenuItemId,
-					restaurant: item.RestaurantName,
-					name: item.ShortDescriptionByLang.is || item.ShortDescriptionByLang.en,
-					description: item.DescriptionByLang.is || item.DescriptionByLang.en,
-					dietTypes: item.DietTypes,
-					allergens: item.Allergens,
-				})),
-			});
-		} catch (e) {
-			return error(e);
-		}
-	},
-);
+export function createServer(opts: { enableWrites?: boolean } = {}): McpServer {
+	const enableWrites = opts.enableWrites ?? writesEnabled();
+	const server = new McpServer({ name: "maul", version: pkg.version });
 
-server.registerTool(
-	"orders",
-	{
-		description:
-			"Read the signed-in user's Maul lunch orders for an ISO week; defaults to next week. No order is placed or changed.",
-		inputSchema: { week: weekSchema },
-	},
-	async ({ week }) => {
-		try {
-			const selectedWeek = week || getNextIsoWeek();
-			const orders = await (await client()).getOrders(selectedWeek);
-			return result({
-				week: selectedWeek,
-				orders: orders.map((order) => ({
-					day: order.WeekdayNumber,
-					itemId: order.MenuItemId,
-					restaurant: order.RestaurantName,
-					name: order.ShortDescriptionByLang?.is || order.ShortDescriptionByLang?.en,
-				})),
-			});
-		} catch (e) {
-			return error(e);
-		}
-	},
-);
+	server.registerTool(
+		"auth_status",
+		{
+			description:
+				'Show whether a Maul login is cached locally (email, organization, token expiry). Log in with the CLI: "maul login".',
+			inputSchema: {},
+			annotations: { readOnlyHint: true },
+		},
+		async () => {
+			try {
+				return result(await authStatus());
+			} catch (e) {
+				return error(e);
+			}
+		},
+	);
 
-if (process.env.MAUL_MCP_ENABLE_WRITES === "1") {
+	server.registerTool(
+		"me",
+		{
+			description: "Read the signed-in user's Maul profile (email, company, location).",
+			inputSchema: {},
+			annotations: { readOnlyHint: true },
+		},
+		async () => {
+			try {
+				const { client } = await getSession();
+				return result(await client.getUser());
+			} catch (e) {
+				return error(e);
+			}
+		},
+	);
+
+	server.registerTool(
+		"menu",
+		{
+			description:
+				"Read Maul lunch menu items for an ISO week (optionally one weekday); defaults to next week. Returns item IDs used by order_submit. No order is placed.",
+			inputSchema: { week: optionalWeek, day: daySchema.optional() },
+			annotations: { readOnlyHint: true },
+		},
+		async ({ week, day }) => {
+			try {
+				const selectedWeek = week || getNextIsoWeek();
+				const { client } = await getSession();
+				const items = (await getMenuItems(client, selectedWeek)).filter(
+					(item) => day === undefined || item.WeekdayNumber === day,
+				);
+				return result({
+					week: selectedWeek,
+					count: items.length,
+					items: items.slice(0, 125).map((item) => ({
+						date: item.Date,
+						day: item.WeekdayNumber,
+						id: item.MenuItemId,
+						restaurant: item.RestaurantName,
+						name: item.ShortDescriptionByLang.is || item.ShortDescriptionByLang.en,
+						nameEn: item.ShortDescriptionByLang.en,
+						description: item.DescriptionByLang.is || item.DescriptionByLang.en,
+						dietTypes: item.DietTypes,
+						allergens: item.Allergens,
+					})),
+				});
+			} catch (e) {
+				return error(e);
+			}
+		},
+	);
+
+	server.registerTool(
+		"orders",
+		{
+			description:
+				"Read the signed-in user's Maul lunch orders for an ISO week; defaults to next week. No order is placed or changed.",
+			inputSchema: { week: optionalWeek },
+			annotations: { readOnlyHint: true },
+		},
+		async ({ week }) => {
+			try {
+				const selectedWeek = week || getNextIsoWeek();
+				const { client } = await getSession();
+				const orders = await client.getOrders(selectedWeek);
+				return result({
+					week: selectedWeek,
+					orders: orders.map((order) => ({
+						date: order.Date,
+						day: Number(order.WeekdayNumber),
+						itemId: order.MenuItemId,
+						restaurant: order.RestaurantName,
+						name: order.ShortDescriptionByLang?.is || order.ShortDescriptionByLang?.en,
+						nameEn: order.ShortDescriptionByLang?.en,
+					})),
+				});
+			} catch (e) {
+				return error(e);
+			}
+		},
+	);
+
+	server.registerTool(
+		"admin_orders",
+		{
+			description:
+				"Read all orders at the signed-in user's location for one date (YYYY-MM-DD). Only works for accounts with Maul admin rights; others get an API error. Returns colleagues' names/emails.",
+			inputSchema: {
+				date: z
+					.string()
+					.regex(/^\d{4}-\d{2}-\d{2}$/)
+					.describe("Date, YYYY-MM-DD"),
+			},
+			annotations: { readOnlyHint: true },
+		},
+		async ({ date }) => {
+			try {
+				const { client } = await getSession();
+				return result({ date, orders: await client.getLocationOrders(date) });
+			} catch (e) {
+				return error(e);
+			}
+		},
+	);
+
+	if (!enableWrites) return server;
+
 	server.registerTool(
 		"order_submit",
 		{
 			description:
-				"Submit one lunch order by exact menu item ID. Requires explicit startup opt-in and exact-ID confirmation. Refuses an existing order for that weekday.",
+				"Place a Maul lunch order for one weekday by exact menu item ID (from the menu tool). confirmItemId must repeat menuItemId exactly. Refuses if that weekday already has an order (cancel it first). Only available when MAUL_MCP_ENABLE_WRITES=1.",
 			inputSchema: {
-				week: z.string().regex(/^\d{4}-W(?:0[1-9]|[1-4]\d|5[0-3])$/),
-				day: z.number().int().min(1).max(5),
-				menuItemId: z.string().min(1).max(120),
-				confirmItemId: z.string(),
+				week: weekSchema,
+				day: daySchema,
+				menuItemId: z.string().min(1).max(120).describe("Exact menu item ID from the menu tool"),
+				confirmItemId: z.string().describe("Must equal menuItemId to confirm the order"),
 			},
+			annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
 		},
 		async ({ week, day, menuItemId, confirmItemId }) => {
 			try {
 				if (confirmItemId !== menuItemId)
 					throw new Error("confirmItemId must exactly match menuItemId.");
-				const token = await requireAuth();
-				const api = await client();
-				const existing = await api.getOrders(week);
-				if (existing.some((order) => Number(order.WeekdayNumber) === day))
+				const { client, token } = await getSession();
+				const existing = await client.getOrders(week);
+				if (findDayOrder(existing, day))
 					throw new Error("An order already exists for this weekday; no change made.");
-				const menus = await api.getMenu(week);
-				const matches = menus
-					.flatMap((menu) => menu.Menu)
-					.filter((item) => item.WeekdayNumber === day && item.MenuItemId === menuItemId);
-				if (matches.length !== 1)
-					throw new Error("Exact menu item not found for that week and weekday.");
+				const matches = (await getMenuItems(client, week)).filter(
+					(item) => item.WeekdayNumber === day && item.MenuItemId === menuItemId,
+				);
 				const item = matches[0];
-				if (!item) throw new Error("Exact menu item not found.");
-				await api.submitOrder({
-					UserId: token.userId,
-					OrderItems: [
-						{
-							RestaurantId: item.RestaurantId,
-							MenuId: "variety-a",
-							MenuItemId: item.MenuItemId,
-							MealTime: item.MealTime || "Lunch",
-							OrderDate: item.Date,
-						},
-					],
-				});
+				if (matches.length !== 1 || !item)
+					throw new Error("Exact menu item not found for that week and weekday.");
+				await client.submitOrder({ UserId: token.userId, OrderItems: [toOrderItem(item)] });
 				try {
-					const updated = await api.getOrders(week);
+					const updated = await client.getOrders(week);
 					const verified = updated.some(
 						(order) => order.MenuItemId === menuItemId && Number(order.WeekdayNumber) === day,
 					);
@@ -167,8 +226,36 @@ if (process.env.MAUL_MCP_ENABLE_WRITES === "1") {
 			}
 		},
 	);
+
+	server.registerTool(
+		"order_cancel",
+		{
+			description:
+				"Cancel the signed-in user's Maul lunch order for one weekday. confirmItemId must equal the menu item ID of the existing order for that day (from the orders tool). Only available when MAUL_MCP_ENABLE_WRITES=1.",
+			inputSchema: {
+				week: weekSchema,
+				day: daySchema,
+				confirmItemId: z
+					.string()
+					.min(1)
+					.describe("Menu item ID of the order being cancelled, as returned by the orders tool"),
+			},
+			annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+		},
+		async ({ week, day, confirmItemId }) => {
+			try {
+				const { client } = await getSession();
+				const cancelled = await cancelDayOrder(client, week, day, confirmItemId);
+				return result({ week, day, cancelled: true, menuItemId: cancelled.MenuItemId });
+			} catch (e) {
+				return error(e);
+			}
+		},
+	);
+
+	return server;
 }
 
 export async function serve(): Promise<void> {
-	await server.connect(new StdioServerTransport());
+	await createServer().connect(new StdioServerTransport());
 }

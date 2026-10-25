@@ -1,16 +1,7 @@
-import { getConfig, requireAuth } from "../lib/config.ts";
-import { MaulClient } from "../lib/maul-client.ts";
+import { getSession } from "../lib/actions.ts";
 
 export async function userInfo(opts: { json?: boolean }) {
-	const token = await requireAuth();
-	const config = getConfig();
-
-	const client = new MaulClient({
-		baseUrl: config.apiUrl,
-		token: token.accessToken,
-		userId: token.userId,
-		organization: token.organization,
-	});
+	const { client } = await getSession();
 
 	const profile = await client.getUser();
 

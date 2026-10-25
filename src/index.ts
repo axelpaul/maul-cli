@@ -1,11 +1,14 @@
 #!/usr/bin/env bun
 
+import pkg from "../package.json" with { type: "json" };
 import { adminOrders } from "./commands/admin.ts";
 import { login, logout, statusCommand } from "./commands/auth.ts";
 import { showMenu } from "./commands/menu.ts";
 import { cancelOrder, showOrders, submitOrder } from "./commands/order.ts";
 import { userInfo } from "./commands/user.ts";
 import { isJsonMode } from "./lib/output.ts";
+
+const VERSION: string = pkg.version;
 
 function getFlag(name: string): string | undefined {
 	const index = process.argv.indexOf(`--${name}`);
@@ -35,10 +38,11 @@ function hasFlag(name: string): boolean {
 const COMMANDS = [
 	{
 		name: "login",
-		description: "Authenticate and cache token",
+		description:
+			"Authenticate and cache token. Prompts for missing values; or set MAUL_USERNAME / MAUL_PASSWORD.",
 		args: [
-			{ name: "username", type: "string", required: true, positional: true },
-			{ name: "password", type: "string", required: true, positional: true },
+			{ name: "username", type: "string", required: false, positional: true },
+			{ name: "password", type: "string", required: false, positional: true },
 		],
 	},
 	{ name: "logout", description: "Clear cached token", args: [] },
@@ -112,19 +116,24 @@ const COMMANDS = [
 	},
 	{
 		name: "admin-orders",
-		description: "View all orders for a date",
+		description: "View all orders at your location for a date (Maul admin accounts only)",
 		args: [{ name: "date", type: "string", required: true, description: "Date (YYYY-MM-DD)" }],
+	},
+	{
+		name: "serve",
+		description: "Start the MCP server on stdio (write tools need MAUL_MCP_ENABLE_WRITES=1)",
+		args: [],
 	},
 ];
 
 function printHelp() {
 	console.log(`
-maul - CLI for the Maul lunch ordering system
+maul ${VERSION} - unofficial CLI and MCP server for the Maul lunch ordering system
 
 Usage: maul <command> [options]
 
 Commands:
-  login <user> <pass>   Authenticate and cache token
+  login [email]         Log in (prompts for password; or MAUL_USERNAME/MAUL_PASSWORD)
   logout                Clear cached token
   status                Show auth status
   me                    Show user profile
@@ -132,8 +141,9 @@ Commands:
   orders                Show your orders for a week
   order-submit          Submit an order (supports fuzzy menu matching)
   order-cancel          Cancel order for a specific day
-  admin-orders          View all orders for a date
-  serve                 Start local read-only MCP server (stdio)
+  admin-orders          View all orders at your location for a date (admin only)
+  serve                 Start the MCP server on stdio
+                        (write tools need MAUL_MCP_ENABLE_WRITES=1)
 
 Options:
   --json                Force JSON output
@@ -157,6 +167,16 @@ function printJsonHelp() {
 const args = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 const command = args[0];
 const json = isJsonMode({ json: hasFlag("json"), pretty: hasFlag("pretty") });
+
+if (hasFlag("version") || process.argv.includes("-v") || command === "version") {
+	console.log(hasFlag("json") ? JSON.stringify({ version: VERSION }) : VERSION);
+	process.exit(0);
+}
+if (hasFlag("help") || process.argv.includes("-h") || command === "help" || command === undefined) {
+	if (hasFlag("json")) printJsonHelp();
+	else printHelp();
+	process.exit(0);
+}
 
 if (command === "serve") {
 	const { serve } = await import("./mcp/server.ts");
@@ -210,33 +230,13 @@ if (command !== "serve")
 				await adminOrders({ date: getFlag("date"), json });
 				break;
 
-			case "help":
-			case undefined:
-				if (json) {
-					printJsonHelp();
-				} else {
-					printHelp();
-				}
-				break;
-
-			case "version":
-				console.log(json ? JSON.stringify({ version: "0.1.0" }) : "maul v0.1.0");
-				break;
-
 			default:
-				if (hasFlag("help")) {
-					if (json) printJsonHelp();
-					else printHelp();
-				} else if (hasFlag("version")) {
-					console.log(json ? JSON.stringify({ version: "0.1.0" }) : "maul v0.1.0");
-				} else {
-					console.error(
-						json
-							? JSON.stringify({ error: `Unknown command: ${command}` })
-							: `Unknown command: ${command}. Run "maul help" for usage.`,
-					);
-					process.exit(1);
-				}
+				console.error(
+					json
+						? JSON.stringify({ error: `Unknown command: ${command}` })
+						: `Unknown command: ${command}. Run "maul --help" for usage.`,
+				);
+				process.exit(1);
 		}
 	} catch (error: any) {
 		if (json) {

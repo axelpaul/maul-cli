@@ -1,18 +1,10 @@
-import { getConfig, requireAuth } from "../lib/config.ts";
-import { MaulClient } from "../lib/maul-client.ts";
+import { assertDate, getSession } from "../lib/actions.ts";
 
 export async function adminOrders(opts: { date?: string; json?: boolean }) {
 	if (!opts.date) throw new Error("--date is required");
+	assertDate(opts.date);
 
-	const token = await requireAuth();
-	const config = getConfig();
-
-	const client = new MaulClient({
-		baseUrl: config.apiUrl,
-		token: token.accessToken,
-		userId: token.userId,
-		organization: token.organization,
-	});
+	const { client } = await getSession();
 
 	const orders = await client.getLocationOrders(opts.date);
 

@@ -1,21 +1,11 @@
-import { getConfig, requireAuth } from "../lib/config.ts";
-import { MaulClient } from "../lib/maul-client.ts";
+import { assertIsoWeek, getMenuItems, getSession } from "../lib/actions.ts";
 import { getNextIsoWeek, weekdayName } from "./helpers.ts";
 
 export async function showMenu(opts: { week?: string; json?: boolean }) {
-	const token = await requireAuth();
-	const config = getConfig();
 	const week = opts.week || getNextIsoWeek();
-
-	const client = new MaulClient({
-		baseUrl: config.apiUrl,
-		token: token.accessToken,
-		userId: token.userId,
-		organization: token.organization,
-	});
-
-	const menus = await client.getMenu(week);
-	const items = menus.flatMap((m) => m.Menu);
+	assertIsoWeek(week);
+	const { client } = await getSession();
+	const items = await getMenuItems(client, week);
 
 	const byDay: Record<string, typeof items> = {};
 	for (const item of items) {
