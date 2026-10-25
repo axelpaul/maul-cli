@@ -72,6 +72,10 @@ export interface ExistingOrderItem {
 
 export interface CachedToken {
 	accessToken: string;
+	/** Cognito refresh token, used to renew accessToken without re-entering the password. */
+	refreshToken?: string;
+	/** Username used at login (needed for token refresh). */
+	username?: string;
 	userId: string;
 	organization: string;
 	email: string;

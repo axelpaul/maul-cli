@@ -1,16 +1,25 @@
-import { unlinkSync } from "fs";
+import { authStatus } from "../lib/actions.ts";
 import { authenticateCognito } from "../lib/auth-client.ts";
-import { getConfig, loadToken, saveToken, TOKEN_PATH } from "../lib/config.ts";
-import type { CachedToken, UserProfile } from "../lib/types.ts";
+import { clearToken, getConfig, saveToken } from "../lib/config.ts";
+import { MaulClient } from "../lib/maul-client.ts";
+import { promptLine } from "../lib/prompt.ts";
+import type { CachedToken } from "../lib/types.ts";
 
 export async function login(opts: { username?: string; password?: string; json?: boolean }) {
 	const config = getConfig();
 
-	const username = opts.username || config.serviceUsername;
-	const password = opts.password || config.servicePassword;
+	let username = opts.username || config.username;
+	let password = opts.password || config.password;
+
+	if (process.stdin.isTTY) {
+		if (!username) username = await promptLine("Maul email: ");
+		if (!password) password = await promptLine("Maul password: ", { hidden: true });
+	}
 
 	if (!username || !password) {
-		throw new Error("Usage: maul login <username> <password>");
+		throw new Error(
+			"Usage: maul login [email] — prompts for the password, or set MAUL_USERNAME and MAUL_PASSWORD",
+		);
 	}
 
 	const auth = await authenticateCognito({
@@ -20,28 +29,23 @@ export async function login(opts: { username?: string; password?: string; json?:
 		password,
 	});
 
-	// Decode id token to get sub (userId) — same as reference app
+	// The id token's `sub` claim is the Maul user ID.
 	const jwtParts = auth.idToken.split(".");
-	const claims = JSON.parse(Buffer.from(jwtParts[1]!, "base64").toString());
+	const claims = JSON.parse(Buffer.from(jwtParts[1]!, "base64url").toString());
 	const userId: string = claims.sub;
 
-	// Fetch user profile to get LocationId
-	const headers = {
-		Authorization: `Bearer ${auth.accessToken}`,
-		Accept: "application/json",
-		Origin: "https://app.maul.is",
-		Referer: "https://app.maul.is/",
-	};
-
-	const res = await fetch(`${config.apiUrl}/users/${userId}`, { headers });
-	if (!res.ok) {
-		throw new Error(`Failed to fetch user profile: ${res.status}`);
-	}
-
-	const profile = (await res.json()) as UserProfile;
+	// The user's profile carries the location (employer canteen) used for menus.
+	const profile = await new MaulClient({
+		baseUrl: config.apiUrl,
+		token: auth.accessToken,
+		userId,
+		organization: "",
+	}).getUser();
 
 	const token: CachedToken = {
 		accessToken: auth.accessToken,
+		refreshToken: auth.refreshToken,
+		username,
 		userId,
 		organization: profile.LocationId,
 		email: profile.Email,
@@ -68,57 +72,28 @@ export async function login(opts: { username?: string; password?: string; json?:
 		console.log(`Authenticated as ${token.email}`);
 		console.log(`  User ID:      ${token.userId}`);
 		console.log(`  Organization: ${token.organization}`);
-		console.log(`  Expires:      ${new Date(token.expiresAt).toLocaleString()}`);
 	}
 }
 
 export async function statusCommand(opts: { json?: boolean }) {
-	const token = await loadToken();
-
-	if (!token) {
-		if (opts.json) {
-			console.log(
-				JSON.stringify({ authenticated: false, reason: "No cached token found" }, null, 2),
-			);
-		} else {
-			console.log('Not authenticated. Run "maul auth login" first.');
-		}
-		return;
-	}
-
-	const expired = Date.now() >= token.expiresAt;
+	const status = await authStatus();
 
 	if (opts.json) {
-		console.log(
-			JSON.stringify(
-				{
-					authenticated: !expired,
-					userId: token.userId,
-					email: token.email,
-					organization: token.organization,
-					expiresAt: new Date(token.expiresAt).toISOString(),
-					...(expired ? { reason: "Token expired" } : {}),
-				},
-				null,
-				2,
-			),
-		);
+		console.log(JSON.stringify(status, null, 2));
+		return;
+	}
+	if (!("email" in status)) {
+		console.log('Not authenticated. Run "maul login" first.');
+	} else if (!status.authenticated) {
+		console.log('Token expired. Run "maul login" to re-authenticate.');
 	} else {
-		if (expired) {
-			console.log('Token expired. Run "maul auth login" to re-authenticate.');
-		} else {
-			console.log(`Authenticated as ${token.email}`);
-			console.log(`  Organization: ${token.organization}`);
-			console.log(`  Expires:      ${new Date(token.expiresAt).toLocaleString()}`);
-		}
+		console.log(`Authenticated as ${status.email}`);
+		console.log(`  Organization: ${status.organization}`);
+		console.log(`  Expires:      ${new Date(status.expiresAt).toLocaleString()}`);
+		if ("note" in status && status.note) console.log(`  ${status.note}`);
 	}
 }
 
 export async function logout() {
-	try {
-		unlinkSync(TOKEN_PATH);
-		console.log("Logged out.");
-	} catch {
-		console.log("Already logged out.");
-	}
+	console.log(clearToken() ? "Logged out." : "Already logged out.");
 }
