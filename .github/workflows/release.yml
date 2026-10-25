@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - name: Build binaries
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          for target in linux-x64 linux-arm64 darwin-x64 darwin-arm64 windows-x64; do
+            os="${target%-*}"
+            arch="${target#*-}"
+            out="release/maul-${os}-${arch}"
+            [ "$os" = "windows" ] && out="${out}.exe"
+            bun build --compile --minify --target="bun-${target}" src/index.ts --outfile "$out"
+          done
+          cd release && sha256sum maul-* > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
