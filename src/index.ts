@@ -155,7 +155,7 @@ function printJsonHelp() {
 }
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith("-"));
-const command = args[0];
+const command = hasFlag("version") ? "version" : args[0];
 const json = isJsonMode({ json: hasFlag("json"), pretty: hasFlag("pretty") });
 
 if (command === "serve") {
