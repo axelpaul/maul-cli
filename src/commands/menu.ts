@@ -1,5 +1,6 @@
 import { getConfig, requireAuth } from "../lib/config.ts";
 import { MaulClient } from "../lib/maul-client.ts";
+import { outputJson } from "../lib/output.ts";
 import { getNextIsoWeek, weekdayName } from "./helpers.ts";
 
 export async function showMenu(opts: { week?: string; json?: boolean }) {
@@ -25,7 +26,7 @@ export async function showMenu(opts: { week?: string; json?: boolean }) {
 	}
 
 	if (opts.json) {
-		console.log(JSON.stringify({ week, menu: byDay }, null, 2));
+		outputJson({ week, menu: byDay });
 	} else {
 		console.log(`Menu for ${week}\n`);
 		for (let d = 1; d <= 5; d++) {
