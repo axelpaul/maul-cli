@@ -10,7 +10,7 @@ export function getConfig() {
 		userPoolId: process.env.USER_POOL_ID || "eu-west-1_KkkgJsbfo",
 		clientId: process.env.CLIENT_ID || "2qavs2k3odmgef85si7bv02qjb",
 		region: process.env.REGION || "eu-west-1",
-		apiUrl: process.env.MAUL_API_URL || "https://dev-api.maul.is",
+		apiUrl: (process.env.MAUL_API_URL || "https://api.maul.is/foodie").replace(/\/+$/, ""),
 		serviceUsername: process.env.SERVICE_ACCOUNT_USERNAME,
 		servicePassword: process.env.SERVICE_ACCOUNT_PASSWORD,
 	};
