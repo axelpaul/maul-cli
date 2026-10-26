@@ -1,0 +1,112 @@
+{
+  "$schema": "https://mcp.axelpaul.is/catalog.schema.json",
+  "id": "maul",
+  "repo": "axelpaul/maul-cli",
+  "name": "Maul",
+  "service": "Maul (máltíðir)",
+  "serviceUrl": "https://app.maul.is",
+  "tagline": "Workplace lunch menus and orders in Maul",
+  "description": "Check your workplace’s lunch menus and orders in Maul. You can also place or cancel lunch orders if you enable changes.",
+  "examples": [
+    "What's for lunch at work on Wednesday?",
+    "Order the vegetarian dish for Thursday.",
+    "Cancel my lunch on Friday."
+  ],
+  "category": "Food",
+  "keywords": [
+    "hádegismatur",
+    "lunch",
+    "mötuneyti"
+  ],
+  "auth": "email+password (Maul account)",
+  "binaries": true,
+  "tools": [
+    {
+      "name": "auth_status",
+      "write": false,
+      "description": "Show whether a Maul login is cached, for which email/location, and token expiry"
+    },
+    {
+      "name": "me",
+      "write": false,
+      "description": "Read the signed-in user's Maul profile"
+    },
+    {
+      "name": "menu",
+      "write": false,
+      "description": "Menu items for an ISO week (optionally one weekday), with item IDs"
+    },
+    {
+      "name": "orders",
+      "write": false,
+      "description": "The signed-in user's orders for an ISO week"
+    },
+    {
+      "name": "admin_orders",
+      "write": false,
+      "description": "All orders at the user's location for a date (Maul admin accounts only)"
+    },
+    {
+      "name": "order_submit",
+      "write": true,
+      "description": "Order one weekday by exact menu item ID with confirmation; refuses if that day already has an order"
+    },
+    {
+      "name": "order_cancel",
+      "write": true,
+      "description": "Cancel one weekday's order; confirmItemId must match the existing order"
+    }
+  ],
+  "commands": [
+    "maul login [email]",
+    "maul status",
+    "maul logout",
+    "maul me",
+    "maul menu [-w YYYY-WNN]",
+    "maul orders [-w YYYY-WNN]",
+    "maul order-submit -w YYYY-WNN -m '{\"1\":\"pad thai\"}'",
+    "maul order-cancel -w YYYY-WNN -d 1-5",
+    "maul admin-orders --date YYYY-MM-DD",
+    "maul serve"
+  ],
+  "envVars": [
+    {
+      "name": "MAUL_USERNAME",
+      "description": "Email for non-interactive login"
+    },
+    {
+      "name": "MAUL_PASSWORD",
+      "description": "Password for non-interactive login"
+    },
+    {
+      "name": "MAUL_MCP_ENABLE_WRITES",
+      "description": "Set to 1 to expose order_submit and order_cancel"
+    },
+    {
+      "name": "MAUL_API_URL",
+      "description": "API base URL (default https://dev-api.maul.is)"
+    },
+    {
+      "name": "MAUL_COGNITO_USER_POOL_ID",
+      "description": "Override the Maul web app's public Cognito user pool ID"
+    },
+    {
+      "name": "MAUL_COGNITO_CLIENT_ID",
+      "description": "Override the Maul web app's public Cognito client ID"
+    },
+    {
+      "name": "MAUL_CONFIG_DIR",
+      "description": "Session cache directory (default ~/.config/maul-cli)"
+    }
+  ],
+  "writesEnvVar": "MAUL_MCP_ENABLE_WRITES",
+  "is": {
+    "tagline": "Matseðlar og hádegismatarpantanir í Maul",
+    "description": "Skoðaðu matseðla og hádegismatarpantanir vinnustaðarins í Maul. Þú getur líka pantað eða afpantað mat ef þú leyfir breytingar.",
+    "examples": [
+      "Hvað er í hádegismat í vinnunni á miðvikudaginn?",
+      "Pantaðu grænmetisréttinn á fimmtudaginn.",
+      "Afpantaðu hádegismatinn minn á föstudaginn."
+    ]
+  }
+}
