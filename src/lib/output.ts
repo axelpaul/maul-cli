@@ -1,3 +1,4 @@
+import { writeSync } from "node:fs";
 import type { CliError } from "./types.ts";
 
 /** Returns true if output should be JSON (non-TTY by default, overridable). */
@@ -9,7 +10,17 @@ export function isJsonMode(flags: { json?: boolean; pretty?: boolean }): boolean
 }
 
 export function outputJson(data: unknown): void {
-	console.log(JSON.stringify(data, null, 2));
+	// Complete the write before returning; console.log can truncate large pipe output.
+	const bytes = Buffer.from(`${JSON.stringify(data, null, 2)}\n`);
+	let offset = 0;
+	while (offset < bytes.length) {
+		try {
+			offset += writeSync(1, bytes, offset, bytes.length - offset);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "EAGAIN") throw error;
+			Bun.sleepSync(1);
+		}
+	}
 }
 
 export function outputError(message: string, statusCode?: number): never {

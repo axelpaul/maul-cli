@@ -22,7 +22,8 @@
     "lint:fix": "bunx biome check --write src/",
     "format": "bunx biome format --write src/",
     "typecheck": "bunx tsc --noEmit",
-    "check": "bun run lint && bun run typecheck && bun run test"
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "verify:mcp": "bun scripts/verify-mcp.ts"
   },
   "type": "module",
   "dependencies": {
